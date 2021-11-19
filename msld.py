@@ -39,8 +39,8 @@ class MSLD:
         self.threshold = 0.5
 
         # TODO: I.Q1
-        self.avg_mask = ...
-
+        self.avg_mask = np.ones((W, W))/(W*W)
+        
         # TODO: I.Q2
         # line_detectors_masks est un dictionnaire contenant les masques
         # de détection de ligne pour toutes les échelles contenues
@@ -51,18 +51,25 @@ class MSLD:
         self.line_detectors_masks = {}
         for l in L:
             # On calcule le détecteur de ligne initial de taille l (les dimensions du masque sont lxl).
-            line_detector = ...
+            
+            line_detector = np.zeros((l,l))
+            l_middle = int(np.floor(l/2))
+            line_detector[l_middle, :] = 1/l
 
             # On initialise la liste des n_orientation masques de taille lxl.
             line_detectors_masks = [line_detector]
             # On effectue n_orientation-1 rotations du masque line_detector.
             # Pour un angle donné, la rotation sera effectué par
-            # >>> r = cv2.getRotationMatrix2D((l//2, l//2), angle, 1)
-            # >>> rotated_mask = cv2.warpAffine(line_detector, r, (l, l))
-            # >>> line_detectors_masks.append(rotated_mask/rotated_mask.sum())
+            for n in range(n_orientation-1):
+                # n part de 0, mais doit partir de 1
+                angle = (n+1)*(180/n_orientation)
+                r = cv2.getRotationMatrix2D((l//2, l//2), angle, 1)
+                rotated_mask = cv2.warpAffine(line_detector, r, (l, l))
+                line_detectors_masks.append(rotated_mask/rotated_mask.sum())
 
             # On assemble les n_orientation masques ensemble:
             self.line_detectors_masks[l] = np.stack(line_detectors_masks, axis=2)
+
 
     ############################################################################
     #                          MSLD IMPLEMENTATION                             #
@@ -308,6 +315,8 @@ def load_dataset():
     >>> train_copy = deepcopy(train)
     """
 
+    # On a 20 dictionnaire dans la liste train. Un dictionnaire par image. Le dict contient image, label et mask.
+
     files = sorted(os.listdir("DRIVE/data/training/"))
     train = []
 
@@ -316,16 +325,41 @@ def load_dataset():
         sample["name"] = file
 
         # TODO I.Q3 Chargez les images image, label et mask:
-        sample["image"] = ...  # Type float, intensité comprises entre 0 et 1
-        sample["label"] = ...  # Type booléen
-        sample["mask"] = ...  # Type booléen
+        sample["image"] = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
+        sample["label"] = imread('DRIVE/label/training/'+file) # Type booléen
+        sample["mask"] = imread('DRIVE/mask/training/'+file)  # Type booléen
+
+        train.append(sample)
+
 
     test = []
     # TODO I.Q3 De la même manière, chargez les images de test.
+    sample["image"] = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
+    sample["label"] = imread('DRIVE/label/test/' + file)  # Type booléen
+    sample["mask"] = imread('DRIVE/mask/test/' + file)  # Type booléen
 
     return train, test
 
 
 def dice(targets, predictions):
     return 2 * np.sum(targets * predictions) / (targets.sum() + predictions.sum())
+
+
+if __name__=="__main__":
+    print("Hello World")
+
+    # msld = MSLD(W=15, L=[3, 5, 7, 9, 11], n_orientation=3)
+    # L est une liste. L != 1.
+
+    # m = msld.line_detectors_masks[3][:, :, 2]
+    # -45 vs 45 dans l'exemple
+    # print(m)
+
+    [train, test] = load_dataset()
+
+
+
+
+
+
 
