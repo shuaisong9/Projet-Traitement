@@ -325,18 +325,21 @@ def load_dataset():
         sample["name"] = file
 
         # TODO I.Q3 Chargez les images image, label et mask:
+        # À FAIRE : CHANGER EN BOOL
+
         sample["image"] = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
         sample["label"] = imread('DRIVE/label/training/'+file) # Type booléen
         sample["mask"] = imread('DRIVE/mask/training/'+file)  # Type booléen
 
         train.append(sample)
 
-
+    #files = sorted(os.listdir("DRIVE/data/test/"))
     test = []
+
     # TODO I.Q3 De la même manière, chargez les images de test.
-    sample["image"] = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
-    sample["label"] = imread('DRIVE/label/test/' + file)  # Type booléen
-    sample["mask"] = imread('DRIVE/mask/test/' + file)  # Type booléen
+    #sample["image"] = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
+    #sample["label"] = imread('DRIVE/label/test/' + file)  # Type booléen
+    #sample["mask"] = imread('DRIVE/mask/test/' + file)  # Type booléen
 
     return train, test
 
@@ -356,6 +359,12 @@ if __name__=="__main__":
     # print(m)
 
     [train, test] = load_dataset()
+
+    elem = train[3]
+    image3 = elem['image']
+    label3 = elem['label']
+    plt.imshow(image3)
+    print(label3.dtype)
 
 
 
