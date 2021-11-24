@@ -90,8 +90,19 @@ class MSLD:
         # Les masques de détections de lignes de longueur L initialisés dans le constructeur sont accessibles par:
         # self.line_detectors_masks[L]
         line_detector = self.line_detectors_masks[L]
+        conv_img_line = np.ones((grey_lvl.shape[0], grey_lvl.shape[1], self.n_orientation))
+        for n in range (self.n_orientation):
+            conv_img_line[:, :, n] = convolve(grey_lvl, line_detector[:, :, n])
 
-        R = ...
+        l_I_max = np.amax(conv_img_line, 2)
+
+        w_I_avg = convolve(grey_lvl, self.avg_mask)
+
+        R_w = l_I_max - w_I_avg
+
+        R_w_norm = (R_w - np.mean(R_w))/np.std(R_w)
+
+        R = R_w_norm
 
         return R
 
@@ -314,7 +325,6 @@ def load_dataset():
     >>> from copy import deepcopy
     >>> train_copy = deepcopy(train)
     """
-
     # On a 20 dictionnaire dans la liste train. Un dictionnaire par image. Le dict contient image, label et mask.
 
     files = sorted(os.listdir("DRIVE/data/training/"))
@@ -325,21 +335,24 @@ def load_dataset():
         sample["name"] = file
 
         # TODO I.Q3 Chargez les images image, label et mask:
-        # À FAIRE : CHANGER EN BOOL
-
-        sample["image"] = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
-        sample["label"] = imread('DRIVE/label/training/'+file) # Type booléen
-        sample["mask"] = imread('DRIVE/mask/training/'+file)  # Type booléen
+        all_img_train = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
+        sample["image"] = 1- all_img_train[:, :, 1]
+        sample["label"] = (imread('DRIVE/label/training/'+file)).astype(bool) # Type booléen
+        sample["mask"] = (imread('DRIVE/mask/training/'+file)).astype(bool) # Type booléen
 
         train.append(sample)
 
-    #files = sorted(os.listdir("DRIVE/data/test/"))
+    files = sorted(os.listdir("DRIVE/data/test/"))
     test = []
 
     # TODO I.Q3 De la même manière, chargez les images de test.
-    #sample["image"] = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
-    #sample["label"] = imread('DRIVE/label/test/' + file)  # Type booléen
-    #sample["mask"] = imread('DRIVE/mask/test/' + file)  # Type booléen
+    for file in files:
+        sample = {}
+        sample["name"] = file
+        all_img_test = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
+        sample["image"] = 1- all_img_test[:, :, 1]
+        sample["label"] = (imread('DRIVE/label/test/' + file)).astype(bool)  # Type booléen
+        sample["mask"] = (imread('DRIVE/mask/test/' + file)).astype(bool)  # Type booléen
 
     return train, test
 
@@ -351,7 +364,7 @@ def dice(targets, predictions):
 if __name__=="__main__":
     print("Hello World")
 
-    # msld = MSLD(W=15, L=[3, 5, 7, 9, 11], n_orientation=3)
+    msld = MSLD(W=15, L=[3, 5, 7, 9, 11], n_orientation=4)
     # L est une liste. L != 1.
 
     # m = msld.line_detectors_masks[3][:, :, 2]
@@ -362,9 +375,15 @@ if __name__=="__main__":
 
     elem = train[3]
     image3 = elem['image']
-    label3 = elem['label']
+    # label3 = elem['label']
     plt.imshow(image3)
-    print(label3.dtype)
+    # print(image3.max())
+    # print(label3.dtype)
+
+    R = msld.basic_line_detector(image3, 5)
+    # print(R.shape)
+    # print(R[250, 250, 1])
+    # print(image3.shape)
 
 
 
