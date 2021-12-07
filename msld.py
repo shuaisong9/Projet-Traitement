@@ -6,7 +6,7 @@ from scipy.ndimage import convolve
 import cv2
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import imread
-
+import math as math
 
 class MSLD:
     """
@@ -52,17 +52,20 @@ class MSLD:
         for l in L:
             # On calcule le détecteur de ligne initial de taille l (les dimensions du masque sont lxl).
             
-            line_detector = np.zeros((l,l))
-            l_middle = int(np.floor(l/2))
+            line_detector = np.zeros((l, l))
+            l_middle = math.floor(l/2)
             line_detector[l_middle, :] = 1/l
 
             # On initialise la liste des n_orientation masques de taille lxl.
             line_detectors_masks = [line_detector]
             # On effectue n_orientation-1 rotations du masque line_detector.
             # Pour un angle donné, la rotation sera effectué par
-            for n in range(n_orientation-1):
+
+
+            for n in range (n_orientation-1):
                 # n part de 0, mais doit partir de 1
-                angle = (n+1)*(180/n_orientation)
+                angle = (n+1)*(180 / n_orientation)
+
                 r = cv2.getRotationMatrix2D((l//2, l//2), angle, 1)
                 rotated_mask = cv2.warpAffine(line_detector, r, (l, l))
                 line_detectors_masks.append(rotated_mask/rotated_mask.sum())
@@ -91,16 +94,16 @@ class MSLD:
         # self.line_detectors_masks[L]
         line_detector = self.line_detectors_masks[L]
         conv_img_line = np.ones((grey_lvl.shape[0], grey_lvl.shape[1], self.n_orientation))
-        for n in range (self.n_orientation):
+
+        for n in range(self.n_orientation):
             conv_img_line[:, :, n] = convolve(grey_lvl, line_detector[:, :, n])
 
-        l_I_max = np.amax(conv_img_line, 2)
+        l_I_max = np.max(conv_img_line, 2)
 
         w_I_avg = convolve(grey_lvl, self.avg_mask)
 
         R_w = l_I_max - w_I_avg
-
-        R_w_norm = (R_w - np.mean(R_w))/np.std(R_w)
+        R_w_norm = (R_w - np.mean(R_w)) / np.std(R_w)
 
         R = R_w_norm
 
@@ -121,7 +124,14 @@ class MSLD:
         # TODO: I.Q6
         # Pour les hyperparamètres L et W utilisez les valeurs de self.L et self.W.
 
-        Rcombined = ...
+        I_igc = 1 - image[:, :, 1]
+        n_L = len(self.L)
+        R_l_w = np.zeros_like(I_igc)
+
+        for l in self.L:
+            R_l_w = R_l_w + self.basic_line_detector(image[:, :, 1], l)
+
+        Rcombined = (1/(n_L+1))*(R_l_w + I_igc)
 
         return Rcombined
 
@@ -139,14 +149,53 @@ class MSLD:
             threshold (float): Seuil proposant la meilleure précision
             accuracy (float): Valeur de la meilleure précision
          """
+        # fpr : false positive (vecteur float)
+        # tpr : true positive (vecteur float)
+        # thresholds : vecteur float des seuils associés à ces taux
 
         fpr, tpr, thresholds = self.roc(dataset)
 
         # TODO: I.Q10
         # Utilisez np.argmax pour trouver l'indice du maximum d'un vecteur.
 
-        threshold = ...
-        accuracy = ...
+        # calculer P, N, et S
+        # utiliser mask pour prendre en compte l'oeil seulement
+        # label = bool déjà
+        # en argument, on met train ou test de la fonction load_dataset
+
+        P_somme = 0
+        S_somme = 0
+
+        for d in dataset:
+            # Pour chaque élément de dataset
+            label = d["label"]  # On lit le label
+            mask = d["mask"]  # le masque
+            # image = d["image"]  # et l'image de l'élément.
+
+            # On applique les masques à label et prediction pour qu'ils contiennent uniquement
+            # la liste des pixels qui appartiennent au masque.
+            retine = label[mask]
+            P = np.sum(retine)
+            S = np.sum(mask)
+
+            P_somme += P
+            S_somme += S
+
+            # On ajoute les vecteurs label et prediction aux listes y_true et y_pred
+            # y_true.append(label)
+
+            # On concatène les vecteurs de la listes y_true pour obtenir un unique vecteur contenant
+            # les labels associés à tous les pixels qui appartiennent au masque du dataset.
+            # y_true = np.concatenate(y_true)
+            # Même chose pour y_pred.
+            # y_pred = np.concatenate(y_pred)
+
+        N_somme = S_somme - P_somme
+
+        accuracies = (tpr*P_somme + N_somme*(1-fpr))/(S_somme)
+        accuracy_max_ind = np.argmax(accuracies)
+        accuracy = np.amax(accuracies)
+        threshold = thresholds[accuracy_max_ind]
 
         self.threshold = threshold
 
@@ -184,6 +233,9 @@ class MSLD:
         Args:
             sample (dict): Un échantillon provenant d'un dataset contenant les champs ["data", "label", "mask"].
         """
+
+        # déjà complété, nous devons seulement l'utiliser
+
         # Calcule la segmentation des vaisseaux
         pred = self.segment_vessels(sample["image"])
 
@@ -335,8 +387,8 @@ def load_dataset():
         sample["name"] = file
 
         # TODO I.Q3 Chargez les images image, label et mask:
-        all_img_train = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
-        sample["image"] = 1- all_img_train[:, :, 1]
+        # all_img_train = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
+        sample["image"] = 1 - imread('DRIVE/data/training/'+file)
         sample["label"] = (imread('DRIVE/label/training/'+file)).astype(bool) # Type booléen
         sample["mask"] = (imread('DRIVE/mask/training/'+file)).astype(bool) # Type booléen
 
@@ -349,8 +401,8 @@ def load_dataset():
     for file in files:
         sample = {}
         sample["name"] = file
-        all_img_test = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
-        sample["image"] = 1- all_img_test[:, :, 1]
+        # all_img_test = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
+        sample["image"] = 1 - imread('DRIVE/data/test/' + file)
         sample["label"] = (imread('DRIVE/label/test/' + file)).astype(bool)  # Type booléen
         sample["mask"] = (imread('DRIVE/mask/test/' + file)).astype(bool)  # Type booléen
 
@@ -364,8 +416,9 @@ def dice(targets, predictions):
 if __name__=="__main__":
     print("Hello World")
 
-    msld = MSLD(W=15, L=[3, 5, 7, 9, 11], n_orientation=4)
+    msld = MSLD(W=15, L=[1, 3, 5, 7, 9, 11, 15], n_orientation=4)
     # L est une liste. L != 1.
+    print(msld.L)
 
     # m = msld.line_detectors_masks[3][:, :, 2]
     # -45 vs 45 dans l'exemple
@@ -373,17 +426,34 @@ if __name__=="__main__":
 
     [train, test] = load_dataset()
 
-    elem = train[3]
-    image3 = elem['image']
+    elem = train[0]
+    image0 = elem['image']
     # label3 = elem['label']
-    plt.imshow(image3)
+    # plt.imshow(image1)
+    # cv2.imshow("Image 1", image0)
+
     # print(image3.max())
     # print(label3.dtype)
 
-    R = msld.basic_line_detector(image3, 5)
+    R1 = msld.basic_line_detector(image0[:, :, 1], L=3)
+    R15 = msld.basic_line_detector(image0[:, :, 1], L=15)
+
+    # cv2.imshow("L=1", R1)
+    # cv2.imshow("L=15", R15)
+    # cv2.waitKey(0)
+
+    Rcombined = msld.multi_scale_line_detector(image0)
+    # cv2.imshow("Rcombined", Rcombined)
+
+    threshold, accuracy = msld.learn_threshold(train)
+    print(threshold, accuracy)
+    # cv2.waitKey(0)
+
     # print(R.shape)
     # print(R[250, 250, 1])
     # print(image3.shape)
+
+
 
 
 
