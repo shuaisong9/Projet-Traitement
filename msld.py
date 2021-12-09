@@ -7,6 +7,8 @@ import cv2
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import imread
 import math as math
+from copy import deepcopy
+import skimage.morphology as skmorph
 
 class MSLD:
     """
@@ -341,8 +343,6 @@ class MSLD:
         tn = 0
         n_total = 0
 
-
-
         for d in dataset:
             label = d['label']
             mask = d['mask']
@@ -351,20 +351,17 @@ class MSLD:
             pred = self.segment_vessels(image)
             label = label[mask]
             pred = pred[mask]
-
-
             n = np.sum(d['mask'])
+
             identity = np.ones_like(pred)
-            tp = tp + np.sum(pred & label) # pred[label]
-            fp = fp + np.sum(pred != label)
+            tp = tp + np.sum(pred & label)
+            fp = fp + np.sum(pred & (1-label))
             # tn = tn + np.sum(identity - pred - d['label'])
-            fn = fn + np.sum(label & (np.invert(pred)))
-            tn = tn + np.sum(identity != (tp and fp and fn))
+            fn = fn + np.sum(label & (1-pred))
+            # tn = tn + np.sum(identity & np.invert(tp and fp and fn))
+            tn = tn + np.sum((1-label) & (1-pred))
             # tn = tn + np.sum(mask != label)
             n_total = n_total + n
-
-
-
 
         accuracy = (tp + tn)/(tp+tn+fp+fn)
         confusion_matrix = [[tp, fn],[fp, tn]]
@@ -406,8 +403,13 @@ class MSLD:
 
         # TODO: II.Q8
         # Utilisez la méthode self.roc(dataset) déjà implémentée.
+        fpr, tpr, thresholds = self.roc(dataset)
 
-        roc_auc = ...
+        plt.plot(fpr, tpr)
+        plt.title("ROC curve")
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        roc_auc = auc(fpr, tpr)
 
         return roc_auc
 
@@ -495,11 +497,17 @@ if __name__=="__main__":
     print(threshold, accuracy)
 
     vessels = msld.segment_vessels(image0)
-    cv2.imshow("Vessels", vessels)
+    # cv2.imshow("Vessels", vessels)
 
-    model_accuracy, confusion_matrix = msld.naive_metrics(train_erroded)
+    test_local = deepcopy(test)
+    kernel = skmorph.disk(3)
 
-    cv2.waitKey(0)
+    for d in test_local:
+        d['mask'] = skmorph.binary_dilation(d['label'], selem=kernel)
+
+    local_accuracy, local_confusion_matrix, local_total = msld.naive_metrics(test_local)
+
+    # cv2.waitKey(0)
 
     # print(R.shape)
     # print(R[250, 250, 1])
