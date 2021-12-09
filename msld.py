@@ -214,8 +214,15 @@ class MSLD:
 
         # TODO: I.Q13
         # Utilisez self.multi_scale_line_detector(image) et self.threshold.
+        img = self.multi_scale_line_detector(image)
+        vessels = np.zeros_like(img)
+        vessels = img > self.threshold
 
-        vessels = ...
+
+        # for i in range (image.shape[0]):
+        #     for j in range (image.shape[1]):
+        #        if img[i, j] > self.threshold:
+        #            vessels[i, j] = True
 
         return vessels
 
@@ -313,6 +320,7 @@ class MSLD:
 
         Args:
             dataset (List[dict]): Base de données sur laquelle calculer les métriques.
+            aka train_erroded
 
         Returns:
             accuracy (float): Précision.
@@ -322,10 +330,47 @@ class MSLD:
 
         # TODO: II.Q1
 
-        accuracy = ...
-        confusion_matrix = ...
+        #
 
-        return accuracy, confusion_matrix
+        # convolution image et mask
+        # comparaison convolution et label
+
+        tp = 0
+        fp = 0
+        fn = 0
+        tn = 0
+        n_total = 0
+
+
+
+        for d in dataset:
+            label = d['label']
+            mask = d['mask']
+            image = d['image']
+
+            pred = self.segment_vessels(image)
+            label = label[mask]
+            pred = pred[mask]
+
+
+            n = np.sum(d['mask'])
+            identity = np.ones_like(pred)
+            tp = tp + np.sum(pred & label) # pred[label]
+            fp = fp + np.sum(pred != label)
+            # tn = tn + np.sum(identity - pred - d['label'])
+            fn = fn + np.sum(label & (np.invert(pred)))
+            tn = tn + np.sum(identity != (tp and fp and fn))
+            # tn = tn + np.sum(mask != label)
+            n_total = n_total + n
+
+
+
+
+        accuracy = (tp + tn)/(tp+tn+fp+fn)
+        confusion_matrix = [[tp, fn],[fp, tn]]
+
+
+        return accuracy, confusion_matrix, n_total
 
     def dice(self, dataset: List[dict]) -> float:
         """
@@ -389,6 +434,7 @@ def load_dataset():
         # TODO I.Q3 Chargez les images image, label et mask:
         # all_img_train = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
         sample["image"] = 1 - imread('DRIVE/data/training/'+file)
+        # can't do 1 - imread, because we are inverting all the channels
         sample["label"] = (imread('DRIVE/label/training/'+file)).astype(bool) # Type booléen
         sample["mask"] = (imread('DRIVE/mask/training/'+file)).astype(bool) # Type booléen
 
@@ -428,26 +474,32 @@ if __name__=="__main__":
 
     elem = train[0]
     image0 = elem['image']
-    # label3 = elem['label']
+    label0 = elem['label']
     # plt.imshow(image1)
-    # cv2.imshow("Image 1", image0)
+    # cv2.imshow("Label 0", label0)
 
     # print(image3.max())
     # print(label3.dtype)
 
-    R1 = msld.basic_line_detector(image0[:, :, 1], L=3)
+    R1 = msld.basic_line_detector(image0[:, :, 1], L=1)
     R15 = msld.basic_line_detector(image0[:, :, 1], L=15)
 
-    # cv2.imshow("L=1", R1)
-    # cv2.imshow("L=15", R15)
-    # cv2.waitKey(0)
+    cv2.imshow("L=1", R1)
+    cv2.imshow("L=15", R15)
+
 
     Rcombined = msld.multi_scale_line_detector(image0)
-    # cv2.imshow("Rcombined", Rcombined)
+    cv2.imshow("Rcombined", Rcombined)
 
     threshold, accuracy = msld.learn_threshold(train)
     print(threshold, accuracy)
-    # cv2.waitKey(0)
+
+    vessels = msld.segment_vessels(image0)
+    cv2.imshow("Vessels", vessels)
+
+    model_accuracy, confusion_matrix = msld.naive_metrics(train_erroded)
+
+    cv2.waitKey(0)
 
     # print(R.shape)
     # print(R[250, 250, 1])
