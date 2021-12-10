@@ -331,9 +331,6 @@ class MSLD:
         """
 
         # TODO: II.Q1
-
-        #
-
         # convolution image et mask
         # comparaison convolution et label
 
@@ -364,7 +361,7 @@ class MSLD:
             n_total = n_total + n
 
         accuracy = (tp + tn)/(tp+tn+fp+fn)
-        confusion_matrix = [[tp, fn],[fp, tn]]
+        confusion_matrix = [[tp, fn],[fp, tn]]/n_total
 
 
         return accuracy, confusion_matrix, n_total
@@ -442,17 +439,19 @@ def load_dataset():
 
         train.append(sample)
 
-    files = sorted(os.listdir("DRIVE/data/test/"))
+    files_test = sorted(os.listdir("DRIVE/data/test/"))
     test = []
 
     # TODO I.Q3 De la même manière, chargez les images de test.
-    for file in files:
+    for file in files_test:
         sample = {}
         sample["name"] = file
         # all_img_test = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
         sample["image"] = 1 - imread('DRIVE/data/test/' + file)
         sample["label"] = (imread('DRIVE/label/test/' + file)).astype(bool)  # Type booléen
         sample["mask"] = (imread('DRIVE/mask/test/' + file)).astype(bool)  # Type booléen
+
+        test.append(sample)
 
     return train, test
 
