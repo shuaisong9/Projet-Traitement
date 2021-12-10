@@ -61,11 +61,9 @@ class MSLD:
             # On initialise la liste des n_orientation masques de taille lxl.
             line_detectors_masks = [line_detector]
             # On effectue n_orientation-1 rotations du masque line_detector.
-            # Pour un angle donné, la rotation sera effectué par
-
 
             for n in range (n_orientation-1):
-                # n part de 0, mais doit partir de 1
+                # n part de 0, mais on veut un angle non nul dès la première itération : donc n+1
                 angle = (n+1)*(180 / n_orientation)
 
                 r = cv2.getRotationMatrix2D((l//2, l//2), angle, 1)
@@ -100,6 +98,7 @@ class MSLD:
         for n in range(self.n_orientation):
             conv_img_line[:, :, n] = convolve(grey_lvl, line_detector[:, :, n])
 
+        # Trouver le maximum selon la 3e dimension du array 3D (axis =2)
         l_I_max = np.max(conv_img_line, 2)
 
         w_I_avg = convolve(grey_lvl, self.avg_mask)
@@ -126,7 +125,7 @@ class MSLD:
         # TODO: I.Q6
         # Pour les hyperparamètres L et W utilisez les valeurs de self.L et self.W.
 
-        I_igc = 1 - image[:, :, 1]
+        I_igc = 1 - image[:, :, 1] # Canal vert inversé
         n_L = len(self.L)
         R_l_w = np.zeros_like(I_igc)
 
@@ -170,27 +169,15 @@ class MSLD:
 
         for d in dataset:
             # Pour chaque élément de dataset
-            label = d["label"]  # On lit le label
-            mask = d["mask"]  # le masque
-            # image = d["image"]  # et l'image de l'élément.
+            label = d["label"]
+            mask = d["mask"]
 
-            # On applique les masques à label et prediction pour qu'ils contiennent uniquement
-            # la liste des pixels qui appartiennent au masque.
             retine = label[mask]
             P = np.sum(retine)
             S = np.sum(mask)
 
             P_somme += P
             S_somme += S
-
-            # On ajoute les vecteurs label et prediction aux listes y_true et y_pred
-            # y_true.append(label)
-
-            # On concatène les vecteurs de la listes y_true pour obtenir un unique vecteur contenant
-            # les labels associés à tous les pixels qui appartiennent au masque du dataset.
-            # y_true = np.concatenate(y_true)
-            # Même chose pour y_pred.
-            # y_pred = np.concatenate(y_pred)
 
         N_somme = S_somme - P_somme
 
@@ -220,12 +207,6 @@ class MSLD:
         vessels = np.zeros_like(img)
         vessels = img > self.threshold
 
-
-        # for i in range (image.shape[0]):
-        #     for j in range (image.shape[1]):
-        #        if img[i, j] > self.threshold:
-        #            vessels[i, j] = True
-
         return vessels
 
     ############################################################################
@@ -242,8 +223,6 @@ class MSLD:
         Args:
             sample (dict): Un échantillon provenant d'un dataset contenant les champs ["data", "label", "mask"].
         """
-
-        # déjà complété, nous devons seulement l'utiliser
 
         # Calcule la segmentation des vaisseaux
         pred = self.segment_vessels(sample["image"])
@@ -331,14 +310,12 @@ class MSLD:
         """
 
         # TODO: II.Q1
-        # convolution image et mask
-        # comparaison convolution et label
 
-        tp = 0
-        fp = 0
-        fn = 0
-        tn = 0
-        n_total = 0
+        tp = 0 # Nombre total de true positive
+        fp = 0 # Nombre total de false positive
+        fn = 0 # Nombre total de false negative
+        tn = 0 # Nombre total de true negative
+        n_total = 0 # Nombre total de pixels
 
         for d in dataset:
             label = d['label']
@@ -350,19 +327,14 @@ class MSLD:
             pred = pred[mask]
             n = np.sum(d['mask'])
 
-            identity = np.ones_like(pred)
             tp = tp + np.sum(pred & label)
             fp = fp + np.sum(pred & (1-label))
-            # tn = tn + np.sum(identity - pred - d['label'])
             fn = fn + np.sum(label & (1-pred))
-            # tn = tn + np.sum(identity & np.invert(tp and fp and fn))
             tn = tn + np.sum((1-label) & (1-pred))
-            # tn = tn + np.sum(mask != label)
             n_total = n_total + n
 
         accuracy = (tp + tn)/(tp+tn+fp+fn)
         confusion_matrix = [[tp, fn],[fp, tn]]/n_total
-
 
         return accuracy, confusion_matrix, n_total
 
@@ -431,9 +403,7 @@ def load_dataset():
         sample["name"] = file
 
         # TODO I.Q3 Chargez les images image, label et mask:
-        # all_img_train = imread('DRIVE/data/training/'+file)  # Type float, intensité comprises entre 0 et 1
-        sample["image"] = 1 - imread('DRIVE/data/training/'+file)
-        # can't do 1 - imread, because we are inverting all the channels
+        sample["image"] = 1 - imread('DRIVE/data/training/'+file) # Type float, intensité comprises entre 0 et 1. Inverse l'image
         sample["label"] = (imread('DRIVE/label/training/'+file)).astype(bool) # Type booléen
         sample["mask"] = (imread('DRIVE/mask/training/'+file)).astype(bool) # Type booléen
 
@@ -446,10 +416,9 @@ def load_dataset():
     for file in files_test:
         sample = {}
         sample["name"] = file
-        # all_img_test = imread('DRIVE/data/test/' + file) # Type float, intensité comprises entre 0 et 1
         sample["image"] = 1 - imread('DRIVE/data/test/' + file)
-        sample["label"] = (imread('DRIVE/label/test/' + file)).astype(bool)  # Type booléen
-        sample["mask"] = (imread('DRIVE/mask/test/' + file)).astype(bool)  # Type booléen
+        sample["label"] = (imread('DRIVE/label/test/' + file)).astype(bool)
+        sample["mask"] = (imread('DRIVE/mask/test/' + file)).astype(bool)
 
         test.append(sample)
 
@@ -463,54 +432,52 @@ def dice(targets, predictions):
 if __name__=="__main__":
     print("Hello World")
 
-    msld = MSLD(W=15, L=[1, 3, 5, 7, 9, 11, 15], n_orientation=4)
-    # L est une liste. L != 1.
-    print(msld.L)
+    # Pour fins de debugging : 
 
-    # m = msld.line_detectors_masks[3][:, :, 2]
-    # -45 vs 45 dans l'exemple
-    # print(m)
-
-    [train, test] = load_dataset()
-
-    elem = train[0]
-    image0 = elem['image']
-    label0 = elem['label']
-    # plt.imshow(image1)
-    # cv2.imshow("Label 0", label0)
-
-    # print(image3.max())
-    # print(label3.dtype)
-
-    R1 = msld.basic_line_detector(image0[:, :, 1], L=1)
-    R15 = msld.basic_line_detector(image0[:, :, 1], L=15)
-
-    cv2.imshow("L=1", R1)
-    cv2.imshow("L=15", R15)
+    # msld = MSLD(W=15, L=[1, 3, 5, 7, 9, 11, 15], n_orientation=4)
+    # print(msld.L)
 
 
-    Rcombined = msld.multi_scale_line_detector(image0)
-    cv2.imshow("Rcombined", Rcombined)
-
-    threshold, accuracy = msld.learn_threshold(train)
-    print(threshold, accuracy)
-
-    vessels = msld.segment_vessels(image0)
-    # cv2.imshow("Vessels", vessels)
-
-    test_local = deepcopy(test)
-    kernel = skmorph.disk(3)
-
-    for d in test_local:
-        d['mask'] = skmorph.binary_dilation(d['label'], selem=kernel)
-
-    local_accuracy, local_confusion_matrix, local_total = msld.naive_metrics(test_local)
-
-    # cv2.waitKey(0)
-
-    # print(R.shape)
-    # print(R[250, 250, 1])
-    # print(image3.shape)
+    # [train, test] = load_dataset()
+    #
+    # elem = train[0]
+    # image0 = elem['image']
+    # label0 = elem['label']
+    # # plt.imshow(image1)
+    # # cv2.imshow("Label 0", label0)
+    #
+    # # print(image3.max())
+    # # print(label3.dtype)
+    #
+    # R1 = msld.basic_line_detector(image0[:, :, 1], L=1)
+    # R15 = msld.basic_line_detector(image0[:, :, 1], L=15)
+    #
+    # cv2.imshow("L=1", R1)
+    # cv2.imshow("L=15", R15)
+    #
+    #
+    # Rcombined = msld.multi_scale_line_detector(image0)
+    # cv2.imshow("Rcombined", Rcombined)
+    #
+    # threshold, accuracy = msld.learn_threshold(train)
+    # print(threshold, accuracy)
+    #
+    # vessels = msld.segment_vessels(image0)
+    # # cv2.imshow("Vessels", vessels)
+    #
+    # test_local = deepcopy(test)
+    # kernel = skmorph.disk(3)
+    #
+    # for d in test_local:
+    #     d['mask'] = skmorph.binary_dilation(d['label'], selem=kernel)
+    #
+    # local_accuracy, local_confusion_matrix, local_total = msld.naive_metrics(test_local)
+    #
+    # # cv2.waitKey(0)
+    #
+    # # print(R.shape)
+    # # print(R[250, 250, 1])
+    # # print(image3.shape)
 
 
 
